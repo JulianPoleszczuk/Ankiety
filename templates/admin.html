@@ -21,8 +21,8 @@
 
     <!-- EXPORT -->
     <div class="mb-4">
-        <a href="/export_excel" class="btn btn-success me-2">Excel (surowe)</a>
-        <a href="/export_spss" class="btn btn-warning">SPSS (analiza)</a>
+        <a href="/export_sav" class="btn btn-success me-2">SPSS (.sav)</a>
+        <a href="/export_spss" class="btn btn-warning">SPSS (csv)</a>
     </div>
 
     <div class="row">
@@ -83,18 +83,85 @@
             <h4>Aktywne pytania</h4>
 
             {% for q in questions %}
-            <div class="card mb-2">
-                <div class="card-body d-flex justify-content-between">
-                    <div>
-                        <strong>{{ loop.index }}. {{ q.data.question }}</strong>
-                        <span class="badge bg-secondary">{{ q.q_type }}</span>
+            <div class="card mb-3">
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ loop.index }}. {{ q.data.question }}</strong>
+                            <span class="badge bg-secondary">{{ q.q_type }}</span>
+                        </div>
+
+                        <div class="d-flex gap-2">
+
+                            <!-- DELETE -->
+                            <form method="POST">
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="q_id" value="{{ q.id }}">
+                                <button class="btn btn-danger btn-sm">Usuń</button>
+                            </form>
+
+                            <!-- EDIT BUTTON -->
+                            <button class="btn btn-warning btn-sm"
+                                    onclick="toggleEdit({{ q.id }})">
+                                Edytuj
+                            </button>
+
+                        </div>
                     </div>
 
-                    <form method="POST">
-                        <input type="hidden" name="action" value="delete">
-                        <input type="hidden" name="q_id" value="{{ q.id }}">
-                        <button class="btn btn-danger btn-sm">Usuń</button>
-                    </form>
+                    <!-- EDIT FORM -->
+                    <div id="edit_{{ q.id }}" style="display:none;" class="mt-3 border-top pt-3">
+
+                        <form method="POST">
+                            <input type="hidden" name="action" value="edit">
+                            <input type="hidden" name="q_id" value="{{ q.id }}">
+
+                            <!-- TREŚĆ -->
+                            <input class="form-control mb-2"
+                                   name="question"
+                                   value="{{ q.data.question }}"
+                                   required>
+
+                            {% if q.q_type == 'radio' %}
+
+                                <!-- OPCJE -->
+                                <label class="form-label">Opcje (oddziel przecinkami)</label>
+                                <textarea class="form-control mb-2" name="options" required>
+{{ q.data.options | join(', ') }}
+                                </textarea>
+
+                            {% elif q.q_type == 'matrix' %}
+
+                                <label class="form-label">Lewa etykieta</label>
+                                <input class="form-control mb-2"
+                                       name="left_label"
+                                       value="{{ q.data.left_label }}">
+
+                                <label class="form-label">Prawa etykieta</label>
+                                <input class="form-control mb-2"
+                                       name="right_label"
+                                       value="{{ q.data.right_label }}">
+
+                                <label class="form-label">Skala</label>
+                                <input type="number"
+                                       class="form-control mb-2"
+                                       name="scale"
+                                       value="{{ q.data.scale_points }}">
+
+                                <label class="form-label">Wiersze</label>
+                                <textarea class="form-control mb-2" name="rows">
+{{ q.data.rows | map(attribute='label') | join(', ') }}
+                                </textarea>
+
+                            {% endif %}
+
+                            <button class="btn btn-success btn-sm">Zapisz zmiany</button>
+
+                        </form>
+
+                    </div>
+
                 </div>
             </div>
             {% endfor %}
@@ -114,6 +181,11 @@
 </div>
 
 <script>
+function toggleEdit(id) {
+    const el = document.getElementById('edit_' + id);
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
 const labels = {{ labels|tojson|safe }};
 const values = {{ values|tojson|safe }};
 

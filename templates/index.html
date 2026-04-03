@@ -21,17 +21,25 @@
                     {% for q in questions %}
                     <div class="question-card">
                         
-                        {# --- RADIO --- #}
+                        <!-- RADIO -->
                         {% if q.q_type == 'radio' %}
                             <h5>{{ loop.index }}. {{ q.data.question }}</h5>
                             {% for opt in q.data.options %}
                             <div class="form-check mb-2">
-                                <input class="form-check-input" type="radio" name="q_{{ q.id }}" id="opt_{{ q.id }}_{{ loop.index }}" value="{{ opt }}" required>
-                                <label class="form-check-label px-2" for="opt_{{ q.id }}_{{ loop.index }}">{{ opt }}</label>
+                                <input class="form-check-input"
+                                       type="radio"
+                                       name="q_{{ q.id }}"
+                                       id="opt_{{ q.id }}_{{ loop.index }}"
+                                       value="{{ opt }}"
+                                       required>
+                                <label class="form-check-label px-2"
+                                       for="opt_{{ q.id }}_{{ loop.index }}">
+                                       {{ opt }}
+                                </label>
                             </div>
                             {% endfor %}
 
-                        {# --- MATRIX --- #}
+                        <!-- MATRIX -->
                         {% elif q.q_type == 'matrix' %}
                             <h5>{{ loop.index }}. {{ q.data.question }}</h5>
                             <div class="table-responsive">
@@ -40,7 +48,6 @@
                                         <tr>
                                             <th>CECHY</th>
                                             <th>{{ q.data.left_label }}</th>
-                                            {# Puste nagłówki kolumn środkowych #}
                                             {% for i in range(q.data.scale_points - 2) %}
                                                 <th></th>
                                             {% endfor %}
@@ -51,16 +58,13 @@
                                         {% for row in q.data.rows %}
                                         <tr>
                                             <td class="row-label">{{ row.label }}</td>
-                                            
-                                            {# Etykiety pomocnicze tylko na mobile #}
-                                            <div class="mobile-labels">
-                                                <span>{{ q.data.left_label }}</span>
-                                                <span>{{ q.data.right_label }}</span>
-                                            </div>
 
                                             {% for i in range(1, q.data.scale_points + 1) %}
                                             <td>
-                                                <input type="radio" name="q_{{ q.id }}_{{ row.id }}" value="{{ i }}" required>
+                                                <input type="radio"
+                                                       name="q_{{ q.id }}_{{ row.id }}"
+                                                       value="{{ i }}"
+                                                       required>
                                             </td>
                                             {% endfor %}
                                         </tr>
@@ -81,5 +85,51 @@
             </div>
         </div>
     </div>
+
+<script>
+let lastTime = Date.now();
+let times = {};
+
+// ⏱️ zapis czasu przy każdej zmianie odpowiedzi
+document.querySelectorAll("input[type=radio]").forEach(input => {
+    input.addEventListener("change", function() {
+
+        let now = Date.now();
+        let diff = (now - lastTime) / 1000;
+
+        // sumowanie czasu jeśli ktoś zmienia odpowiedź
+        if (times[this.name]) {
+            times[this.name] += diff;
+        } else {
+            times[this.name] = diff;
+        }
+
+        lastTime = now;
+    });
+});
+
+// ⏱️ przy wysyłaniu formularza
+document.querySelector("form").addEventListener("submit", function() {
+
+    document.querySelectorAll("input[type=radio]:checked").forEach(input => {
+
+        let name = input.name;
+
+        // fallback jeśli brak czasu
+        if (!times[name]) {
+            times[name] = (Date.now() - lastTime) / 1000;
+        }
+
+        let hidden = document.createElement("input");
+        hidden.type = "hidden";
+        hidden.name = name + "_time";
+        hidden.value = times[name];
+
+        this.appendChild(hidden);
+    });
+
+});
+</script>
+
 </body>
 </html>

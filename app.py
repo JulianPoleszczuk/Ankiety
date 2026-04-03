@@ -7,6 +7,9 @@ from datetime import datetime
 import uuid
 from sqlalchemy import func
 
+import pyreadstat
+import pandas as pd
+
 app = Flask(__name__)
 app.secret_key = "secret123"
 
@@ -29,6 +32,7 @@ class Result(db.Model):
     question_id = db.Column(db.Integer, nullable=False)
     row_id = db.Column(db.String(100), nullable=True)
     answer = db.Column(db.Text, nullable=False)
+    time_spent = db.Column(db.Float, nullable=True)  # ⏱️ NOWE
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Visit(db.Model):
@@ -65,18 +69,27 @@ def index():
 
     if request.method == 'POST':
         session_id = str(uuid.uuid4())
+        form_data = request.form.to_dict()
 
-        for key, value in request.form.items():
+        for key, value in form_data.items():
+
+            if key.endswith("_time"):
+                continue
+
             try:
                 parts = key.split('_')
                 q_id = int(parts[1])
                 row_id = parts[2] if len(parts) > 2 else None
 
+                time_key = key + "_time"
+                time_spent = float(form_data.get(time_key, 0))
+
                 db.session.add(Result(
                     session_id=session_id,
                     question_id=q_id,
                     row_id=row_id,
-                    answer=value
+                    answer=value,
+                    time_spent=time_spent
                 ))
             except:
                 continue
@@ -109,7 +122,6 @@ def admin():
     if request.method == 'POST':
         action = request.form.get('action')
 
-        # --- ADD RADIO ---
         if action == 'add_radio':
             options = [o.strip() for o in request.form.get('options').split(',') if o.strip()]
             db.session.add(Question(
@@ -120,7 +132,6 @@ def admin():
                 })
             ))
 
-        # --- ADD MATRIX ---
         elif action == 'add_matrix':
             rows = []
             for r in request.form.get('rows').split(','):
@@ -142,13 +153,11 @@ def admin():
                 })
             ))
 
-        # --- DELETE ---
         elif action == 'delete':
             q_id = request.form.get('q_id')
             Question.query.filter_by(id=q_id).delete()
             Result.query.filter_by(question_id=q_id).delete()
 
-        # --- EDIT ---
         elif action == 'edit':
             q_id = int(request.form.get('q_id'))
             q = Question.query.get(q_id)
@@ -212,7 +221,59 @@ def admin():
         values=values
     )
 
-# --- EXPORT SPSS (NAPRAWIONE) ---
+# --- EXPORT SAV ---
+
+@app.route('/export_sav')
+def export_sav():
+    results = Result.query.all()
+    questions = Question.query.all()
+
+    questions_map = {q.id: json.loads(q.content)["question"] for q in questions}
+
+    data = {}
+
+    for r in results:
+        sid = r.session_id
+        if sid not in data:
+            data[sid] = {}
+
+        if r.row_id:
+            key = f"{questions_map.get(r.question_id)}_{r.row_id}"
+            data[sid][key] = int(r.answer)
+
+            # czas
+            data[sid][key + "_time"] = r.time_spent
+
+        else:
+            key = questions_map.get(r.question_id)
+
+            # płeć binarnie
+            if key and key.lower() == "płeć":
+                if r.answer.lower() in ["kobieta", "k"]:
+                    data[sid][key] = 0
+                elif r.answer.lower() in ["mężczyzna", "mezczyzna", "m"]:
+                    data[sid][key] = 1
+                else:
+                    data[sid][key] = None
+            else:
+                data[sid][key] = r.answer
+
+            data[sid][key + "_time"] = r.time_spent
+
+    df = pd.DataFrame.from_dict(data, orient='index')
+    df.reset_index(inplace=True)
+    df.rename(columns={"index": "session"}, inplace=True)
+
+    file_path = "export.sav"
+    pyreadstat.write_sav(df, file_path)
+
+    return Response(
+        open(file_path, "rb"),
+        mimetype="application/octet-stream",
+        headers={"Content-Disposition": "attachment; filename=ankieta.sav"}
+    )
+
+# --- EXPORT SPSS CSV (zostaje) ---
 
 @app.route('/export_spss')
 def export_spss():
@@ -228,12 +289,9 @@ def export_spss():
 
         if r.row_id:
             key = f"{questions_map.get(r.question_id)}_{r.row_id}"
-            try:
-                data[sid][key] = int(r.answer)
-            except:
-                data[sid][key] = r.answer
+            data[sid][key] = r.answer
         else:
-            key = questions_map.get(r.question_id, f"q_{r.question_id}")
+            key = questions_map.get(r.question_id)
             data[sid][key] = r.answer
 
     keys = set()
@@ -255,22 +313,6 @@ def export_spss():
     return Response('\ufeff'+si.getvalue(),
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment; filename=spss.csv"})
-
-# --- INIT ---
-
-@app.route('/init_db')
-def init_db():
-    if not Question.query.first():
-
-        db.session.add(Question(q_type='radio', content=json.dumps({
-            "question": "Wiek",
-            "options": ["15-18","19-24","25-34"]
-        })))
-
-        db.session.commit()
-        return "OK"
-
-    return "Już jest"
 
 if __name__ == '__main__':
     app.run(debug=True)
