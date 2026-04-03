@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ankieta Online</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container py-4">
+        <div class="row justify-content-center">
+            <div class="col-12">
+                
+                <div class="survey-header">
+                    <h1>Formularz Badawczy</h1>
+                    <p class="text-muted m-0">Prosimy o wypełnienie wszystkich pól</p>
+                </div>
+
+                <form method="POST">
+                    {% for q in questions %}
+                    <div class="question-card">
+                        
+                        {# --- RADIO --- #}
+                        {% if q.q_type == 'radio' %}
+                            <h5>{{ loop.index }}. {{ q.data.question }}</h5>
+                            {% for opt in q.data.options %}
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" name="q_{{ q.id }}" id="opt_{{ q.id }}_{{ loop.index }}" value="{{ opt }}" required>
+                                <label class="form-check-label px-2" for="opt_{{ q.id }}_{{ loop.index }}">{{ opt }}</label>
+                            </div>
+                            {% endfor %}
+
+                        {# --- MATRIX --- #}
+                        {% elif q.q_type == 'matrix' %}
+                            <h5>{{ loop.index }}. {{ q.data.question }}</h5>
+                            <div class="table-responsive">
+                                <table class="matrix-table">
+                                    <thead>
+                                        <tr>
+                                            <th>CECHY</th>
+                                            <th>{{ q.data.left_label }}</th>
+                                            {# Puste nagłówki kolumn środkowych #}
+                                            {% for i in range(q.data.scale_points - 2) %}
+                                                <th></th>
+                                            {% endfor %}
+                                            <th>{{ q.data.right_label }}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for row in q.data.rows %}
+                                        <tr>
+                                            <td class="row-label">{{ row.label }}</td>
+                                            
+                                            {# Etykiety pomocnicze tylko na mobile #}
+                                            <div class="mobile-labels">
+                                                <span>{{ q.data.left_label }}</span>
+                                                <span>{{ q.data.right_label }}</span>
+                                            </div>
+
+                                            {% for i in range(1, q.data.scale_points + 1) %}
+                                            <td>
+                                                <input type="radio" name="q_{{ q.id }}_{{ row.id }}" value="{{ i }}" required>
+                                            </td>
+                                            {% endfor %}
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% endif %}
+
+                    </div>
+                    {% endfor %}
+
+                    <div class="pb-5">
+                        <button type="submit" class="btn-submit">WYŚLIJ DANE DO BAZY</button>
+                    </div>
+                </form>
+
+            </div>
+        </div>
+    </div>
+</body>
+</html>

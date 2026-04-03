@@ -1,0 +1,167 @@
+:root {
+    --bg-black: #000000;
+    --card-black: #0a0a0a;
+    --accent-neon: #ccff00; /* Neonowa limonka */
+    --text-white: #ffffff;
+    --text-dim: #888888;
+    --border-dim: #222222;
+}
+
+body { 
+    background-color: var(--bg-black);
+    color: var(--text-white);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    max-width: 1000px; /* Nieco szerszy kontener dla lepszej tabeli */
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.survey-header { 
+    background: var(--card-black);
+    border: 1px solid var(--border-dim);
+    border-top: 4px solid var(--accent-neon);
+    padding: 40px 20px;
+    border-radius: 4px;
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.survey-header h1 {
+    font-size: 2.2rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin: 0;
+}
+
+.question-card { 
+    background: var(--card-black);
+    border: 1px solid var(--border-dim);
+    padding: 30px;
+    margin-bottom: 20px;
+    border-radius: 4px;
+}
+
+.question-card h5 {
+    font-size: 1.1rem;
+    margin-bottom: 25px;
+    color: var(--text-white);
+    border-left: 3px solid var(--accent-neon);
+    padding-left: 15px;
+}
+
+/* --- FIX DLA KROPEK NA KOMPUTERZE --- */
+.matrix-table {
+    width: 100%;
+    table-layout: fixed; /* WYMUSZA SZTYWNE SZEROKOŚCI KOLUMN */
+    border-collapse: collapse;
+}
+
+.matrix-table th {
+    color: var(--text-dim);
+    font-size: 10px;
+    letter-spacing: 1px;
+    padding: 10px 0;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border-dim);
+    font-weight: normal;
+}
+
+/* Pierwsza kolumna (Cechy) - 30% szerokości */
+.matrix-table th:first-child, .matrix-table td:first-child {
+    width: 30%;
+    text-align: left;
+}
+
+/* Kolumny z kropkami - równe rozłożenie */
+.matrix-table td {
+    padding: 15px 0;
+    border-bottom: 1px solid var(--border-dim);
+    text-align: center;
+}
+
+.row-label {
+    color: var(--text-white);
+    font-weight: bold;
+    font-size: 0.95rem;
+}
+
+/* Customowe Neonowe Kropki */
+input[type="radio"] {
+    appearance: none;
+    width: 22px;
+    height: 22px;
+    border: 2px solid #333;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+input[type="radio"]:checked {
+    border-color: var(--accent-neon);
+    background-color: var(--accent-neon);
+    box-shadow: 0 0 12px var(--accent-neon);
+}
+
+/* --- RESPONSYWNOŚĆ (MOBILE) --- */
+@media (max-width: 768px) {
+    .matrix-table, .matrix-table thead, .matrix-table tbody, .matrix-table th, .matrix-table td, .matrix-table tr {
+        display: block;
+    }
+
+    .matrix-table thead { display: none; }
+
+    .matrix-table td {
+        border: none;
+        padding: 8px 0;
+        width: 100% !important;
+        text-align: center;
+    }
+
+    .matrix-table td:first-child {
+        color: var(--accent-neon);
+        font-size: 1.1rem;
+        padding-top: 25px;
+        border-top: 1px solid var(--border-dim);
+    }
+
+    .mobile-labels {
+        display: flex;
+        justify-content: space-between;
+        width: 90%;
+        margin: 5px auto 10px;
+        font-size: 10px;
+        color: var(--text-dim);
+        text-transform: uppercase;
+    }
+}
+
+@media (min-width: 769px) {
+    .mobile-labels { display: none; }
+}
+
+/* Przycisk wysyłania */
+.btn-submit {
+    background-color: var(--accent-neon);
+    color: black;
+    border: none;
+    padding: 18px 0;
+    width: 100%;
+    font-size: 1rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.btn-submit:hover {
+    filter: brightness(1.1);
+}
