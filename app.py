@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, Response, session
+from flask import Flask, render_template, request, redirect, Response, session
 from flask_sqlalchemy import SQLAlchemy
 import json
 import csv
@@ -58,7 +58,6 @@ def login():
 @app.route('/', methods=['GET', 'POST'])
 def index():
 
-    # liczenie odwiedzin
     ip = request.remote_addr
     if not Visit.query.filter_by(ip=ip).first():
         db.session.add(Visit(ip=ip))
@@ -95,7 +94,6 @@ def index():
 
     return render_template('index.html', questions=questions)
 
-
 @app.route('/thanks')
 def thanks():
     return render_template('thanks.html')
@@ -111,6 +109,7 @@ def admin():
     if request.method == 'POST':
         action = request.form.get('action')
 
+        # --- ADD RADIO ---
         if action == 'add_radio':
             options = [o.strip() for o in request.form.get('options').split(',') if o.strip()]
             db.session.add(Question(
@@ -121,6 +120,7 @@ def admin():
                 })
             ))
 
+        # --- ADD MATRIX ---
         elif action == 'add_matrix':
             rows = []
             for r in request.form.get('rows').split(','):
@@ -142,10 +142,42 @@ def admin():
                 })
             ))
 
+        # --- DELETE ---
         elif action == 'delete':
             q_id = request.form.get('q_id')
             Question.query.filter_by(id=q_id).delete()
             Result.query.filter_by(question_id=q_id).delete()
+
+        # --- EDIT ---
+        elif action == 'edit':
+            q_id = int(request.form.get('q_id'))
+            q = Question.query.get(q_id)
+
+            if q:
+                if q.q_type == 'radio':
+                    options = [o.strip() for o in request.form.get('options').split(',') if o.strip()]
+                    q.content = json.dumps({
+                        "question": request.form.get('question'),
+                        "options": options
+                    })
+
+                elif q.q_type == 'matrix':
+                    rows = []
+                    for r in request.form.get('rows').split(','):
+                        r = r.strip()
+                        if r:
+                            rows.append({
+                                "id": r.lower().replace(" ", "_"),
+                                "label": r
+                            })
+
+                    q.content = json.dumps({
+                        "question": request.form.get('question'),
+                        "left_label": request.form.get('left_label'),
+                        "right_label": request.form.get('right_label'),
+                        "scale_points": int(request.form.get('scale', 7)),
+                        "rows": rows
+                    })
 
         db.session.commit()
         return redirect('/admin')
@@ -162,7 +194,6 @@ def admin():
     visits = Visit.query.count()
     users = db.session.query(Result.session_id).distinct().count()
 
-    # średnie
     averages = db.session.query(
         Result.row_id,
         func.avg(Result.answer)
@@ -181,28 +212,13 @@ def admin():
         values=values
     )
 
-# --- EXPORT EXCEL ---
-
-@app.route('/export_excel')
-def export_excel():
-    results = Result.query.all()
-    si = StringIO()
-    cw = csv.writer(si, delimiter=';')
-
-    cw.writerow(['id','session','question_id','row_id','answer','timestamp'])
-
-    for r in results:
-        cw.writerow([r.id, r.session_id, r.question_id, r.row_id, r.answer, r.timestamp])
-
-    return Response('\ufeff'+si.getvalue(),
-        mimetype="text/csv",
-        headers={"Content-Disposition": "attachment; filename=excel.csv"})
-
-# --- EXPORT SPSS ---
+# --- EXPORT SPSS (NAPRAWIONE) ---
 
 @app.route('/export_spss')
 def export_spss():
     results = Result.query.all()
+    questions_map = {q.id: json.loads(q.content)["question"] for q in Question.query.all()}
+
     data = {}
 
     for r in results:
@@ -211,12 +227,14 @@ def export_spss():
             data[sid] = {}
 
         if r.row_id:
+            key = f"{questions_map.get(r.question_id)}_{r.row_id}"
             try:
-                data[sid][r.row_id] = int(r.answer)
+                data[sid][key] = int(r.answer)
             except:
-                data[sid][r.row_id] = r.answer
+                data[sid][key] = r.answer
         else:
-            data[sid]['wiek'] = r.answer
+            key = questions_map.get(r.question_id, f"q_{r.question_id}")
+            data[sid][key] = r.answer
 
     keys = set()
     for v in data.values():
@@ -238,7 +256,7 @@ def export_spss():
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment; filename=spss.csv"})
 
-# --- INIT DB ---
+# --- INIT ---
 
 @app.route('/init_db')
 def init_db():
@@ -246,20 +264,7 @@ def init_db():
 
         db.session.add(Question(q_type='radio', content=json.dumps({
             "question": "Wiek",
-            "options": ["15-18","19-24","25-34","35-44","45-54","55-60","60+"]
-        })))
-
-        db.session.add(Question(q_type='matrix', content=json.dumps({
-            "question": "Oceń cechy",
-            "left_label": "Dziewczyny",
-            "right_label": "Chłopaki",
-            "scale_points": 8,
-            "rows": [
-                {"id":"spojnosc","label":"Spójność"},
-                {"id":"empatia","label":"Empatia"},
-                {"id":"humor","label":"Humor"},
-                {"id":"ambicja","label":"Ambicja"}
-            ]
+            "options": ["15-18","19-24","25-34"]
         })))
 
         db.session.commit()
