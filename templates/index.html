@@ -18,6 +18,7 @@
                 </div>
 
                 <form method="POST">
+
                     {% for q in questions %}
                     <div class="question-card">
                         
@@ -29,12 +30,10 @@
                                 <input class="form-check-input"
                                        type="radio"
                                        name="q_{{ q.id }}"
-                                       id="opt_{{ q.id }}_{{ loop.index }}"
                                        value="{{ opt }}"
                                        required>
-                                <label class="form-check-label px-2"
-                                       for="opt_{{ q.id }}_{{ loop.index }}">
-                                       {{ opt }}
+                                <label class="form-check-label px-2">
+                                    {{ opt }}
                                 </label>
                             </div>
                             {% endfor %}
@@ -72,6 +71,13 @@
                                     </tbody>
                                 </table>
                             </div>
+                        {% elif q.q_type == 'open_numeric' %}
+                            <h5>{{ loop.index }}. {{ q.data.question }}</h5>
+                            <input type="number"
+                                class="form-control"
+                                placeholder="Wpisz liczbę..."
+                                name="q_{{ q.id }}"
+                                required>
                         {% endif %}
 
                     </div>
@@ -90,14 +96,12 @@
 let lastTime = Date.now();
 let times = {};
 
-// ⏱️ zapis czasu przy każdej zmianie odpowiedzi
+// RADIO + MATRIX czas
 document.querySelectorAll("input[type=radio]").forEach(input => {
     input.addEventListener("change", function() {
-
         let now = Date.now();
         let diff = (now - lastTime) / 1000;
 
-        // sumowanie czasu jeśli ktoś zmienia odpowiedź
         if (times[this.name]) {
             times[this.name] += diff;
         } else {
@@ -108,14 +112,29 @@ document.querySelectorAll("input[type=radio]").forEach(input => {
     });
 });
 
-// ⏱️ przy wysyłaniu formularza
+// OPEN NUMERIC czas
+document.querySelectorAll("input[type=number]").forEach(input => {
+    input.addEventListener("change", function() {
+        let now = Date.now();
+        let diff = (now - lastTime) / 1000;
+
+        if (times[this.name]) {
+            times[this.name] += diff;
+        } else {
+            times[this.name] = diff;
+        }
+
+        lastTime = now;
+    });
+});
+
+// submit
 document.querySelector("form").addEventListener("submit", function() {
 
-    document.querySelectorAll("input[type=radio]:checked").forEach(input => {
+    document.querySelectorAll("input:checked, input[type=number]").forEach(input => {
 
         let name = input.name;
 
-        // fallback jeśli brak czasu
         if (!times[name]) {
             times[name] = (Date.now() - lastTime) / 1000;
         }

@@ -1,3 +1,4 @@
+
 :root {
     --bg-black: #000000;
     --card-black: #0a0a0a;
@@ -164,4 +165,20 @@ input[type="radio"]:checked {
 
 .btn-submit:hover {
     filter: brightness(1.1);
+}
+.form-control[type="number"] {
+    background-color: #111 !important;
+    color: white !important;
+    border: 1px solid #333;
+    border-radius: 10px;
+    padding: 12px;
+}
+
+.form-control[type="number"]:focus {
+    background-color: #000 !important;
+    border-color: var(--accent-neon);
+    box-shadow: 0 0 10px var(--accent-neon);
+}
+input::placeholder {
+    color: #666;
 }

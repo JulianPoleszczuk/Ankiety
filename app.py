@@ -29,10 +29,10 @@ class Question(db.Model):
 class Result(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     session_id = db.Column(db.String(36))
-    question_id = db.Column(db.Integer, nullable=False)
-    row_id = db.Column(db.String(100), nullable=True)
-    answer = db.Column(db.Text, nullable=False)
-    time_spent = db.Column(db.Float, nullable=True)  # ⏱️ NOWE
+    question_id = db.Column(db.Integer)
+    row_id = db.Column(db.String(100))
+    answer = db.Column(db.Text)
+    time_spent = db.Column(db.Float)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Visit(db.Model):
@@ -52,12 +52,12 @@ def login():
             return redirect('/admin')
     return '''
     <form method="POST" style="text-align:center;margin-top:100px;">
-        <input type="password" name="password" placeholder="Hasło">
+        <input type="password" name="password">
         <button>Zaloguj</button>
     </form>
     '''
 
-# --- STRONA GŁÓWNA ---
+# --- INDEX ---
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -69,9 +69,9 @@ def index():
 
     if request.method == 'POST':
         session_id = str(uuid.uuid4())
-        form_data = request.form.to_dict()
+        form = request.form.to_dict()
 
-        for key, value in form_data.items():
+        for key, value in form.items():
 
             if key.endswith("_time"):
                 continue
@@ -81,8 +81,13 @@ def index():
                 q_id = int(parts[1])
                 row_id = parts[2] if len(parts) > 2 else None
 
-                time_key = key + "_time"
-                time_spent = float(form_data.get(time_key, 0))
+                time_spent = float(form.get(key + "_time", 0))
+
+                # 🔥 płeć jako 0/1
+                if value.lower() in ["kobieta", "k"]:
+                    value = "0"
+                elif value.lower() in ["mężczyzna", "mezczyzna", "m"]:
+                    value = "1"
 
                 db.session.add(Result(
                     session_id=session_id,
@@ -107,6 +112,7 @@ def index():
 
     return render_template('index.html', questions=questions)
 
+
 @app.route('/thanks')
 def thanks():
     return render_template('thanks.html')
@@ -123,7 +129,7 @@ def admin():
         action = request.form.get('action')
 
         if action == 'add_radio':
-            options = [o.strip() for o in request.form.get('options').split(',') if o.strip()]
+            options = [o.strip() for o in request.form.get('options').split(',')]
             db.session.add(Question(
                 q_type='radio',
                 content=json.dumps({
@@ -134,13 +140,11 @@ def admin():
 
         elif action == 'add_matrix':
             rows = []
-            for r in request.form.get('rows').split(','):
-                r = r.strip()
-                if r:
-                    rows.append({
-                        "id": r.lower().replace(" ", "_"),
-                        "label": r
-                    })
+            for i, r in enumerate(request.form.get('rows').split(','), start=1):
+                rows.append({
+                    "id": f"c{i}",
+                    "label": r.strip()
+                })
 
             db.session.add(Question(
                 q_type='matrix',
@@ -153,51 +157,27 @@ def admin():
                 })
             ))
 
+        elif action == 'add_open':
+            db.session.add(Question(
+                q_type='open',
+                content=json.dumps({
+                    "question": request.form.get('question')
+                })
+            ))
+
         elif action == 'delete':
             q_id = request.form.get('q_id')
             Question.query.filter_by(id=q_id).delete()
             Result.query.filter_by(question_id=q_id).delete()
 
-        elif action == 'edit':
-            q_id = int(request.form.get('q_id'))
-            q = Question.query.get(q_id)
-
-            if q:
-                if q.q_type == 'radio':
-                    options = [o.strip() for o in request.form.get('options').split(',') if o.strip()]
-                    q.content = json.dumps({
-                        "question": request.form.get('question'),
-                        "options": options
-                    })
-
-                elif q.q_type == 'matrix':
-                    rows = []
-                    for r in request.form.get('rows').split(','):
-                        r = r.strip()
-                        if r:
-                            rows.append({
-                                "id": r.lower().replace(" ", "_"),
-                                "label": r
-                            })
-
-                    q.content = json.dumps({
-                        "question": request.form.get('question'),
-                        "left_label": request.form.get('left_label'),
-                        "right_label": request.form.get('right_label'),
-                        "scale_points": int(request.form.get('scale', 7)),
-                        "rows": rows
-                    })
-
         db.session.commit()
         return redirect('/admin')
 
-    questions = []
-    for q in Question.query.all():
-        questions.append({
-            'id': q.id,
-            'q_type': q.q_type,
-            'data': json.loads(q.content)
-        })
+    questions = [{
+        'id': q.id,
+        'q_type': q.q_type,
+        'data': json.loads(q.content)
+    } for q in Question.query.all()]
 
     count = Result.query.count()
     visits = Visit.query.count()
@@ -226,10 +206,6 @@ def admin():
 @app.route('/export_sav')
 def export_sav():
     results = Result.query.all()
-    questions = Question.query.all()
-
-    questions_map = {q.id: json.loads(q.content)["question"] for q in questions}
-
     data = {}
 
     for r in results:
@@ -237,49 +213,32 @@ def export_sav():
         if sid not in data:
             data[sid] = {}
 
-        if r.row_id:
-            key = f"{questions_map.get(r.question_id)}_{r.row_id}"
-            data[sid][key] = int(r.answer)
+        key = r.row_id if r.row_id else f"q{r.question_id}"
 
-            # czas
-            data[sid][key + "_time"] = r.time_spent
+        try:
+            data[sid][key] = float(r.answer)
+        except:
+            data[sid][key] = r.answer
 
-        else:
-            key = questions_map.get(r.question_id)
-
-            # płeć binarnie
-            if key and key.lower() == "płeć":
-                if r.answer.lower() in ["kobieta", "k"]:
-                    data[sid][key] = 0
-                elif r.answer.lower() in ["mężczyzna", "mezczyzna", "m"]:
-                    data[sid][key] = 1
-                else:
-                    data[sid][key] = None
-            else:
-                data[sid][key] = r.answer
-
-            data[sid][key + "_time"] = r.time_spent
+        data[sid][key + "_time"] = r.time_spent
 
     df = pd.DataFrame.from_dict(data, orient='index')
     df.reset_index(inplace=True)
     df.rename(columns={"index": "session"}, inplace=True)
 
-    file_path = "export.sav"
-    pyreadstat.write_sav(df, file_path)
+    pyreadstat.write_sav(df, "export.sav")
 
     return Response(
-        open(file_path, "rb"),
+        open("export.sav", "rb"),
         mimetype="application/octet-stream",
         headers={"Content-Disposition": "attachment; filename=ankieta.sav"}
     )
 
-# --- EXPORT SPSS CSV (zostaje) ---
+# --- EXPORT CSV ---
 
 @app.route('/export_spss')
 def export_spss():
     results = Result.query.all()
-    questions_map = {q.id: json.loads(q.content)["question"] for q in Question.query.all()}
-
     data = {}
 
     for r in results:
@@ -287,32 +246,23 @@ def export_spss():
         if sid not in data:
             data[sid] = {}
 
-        if r.row_id:
-            key = f"{questions_map.get(r.question_id)}_{r.row_id}"
-            data[sid][key] = r.answer
-        else:
-            key = questions_map.get(r.question_id)
-            data[sid][key] = r.answer
+        key = r.row_id if r.row_id else f"q{r.question_id}"
+        data[sid][key] = r.answer
 
-    keys = set()
-    for v in data.values():
-        keys.update(v.keys())
-
-    columns = ['session'] + sorted(keys)
+    columns = ['session'] + sorted({k for v in data.values() for k in v})
 
     si = StringIO()
     cw = csv.writer(si, delimiter=';')
     cw.writerow(columns)
 
     for sid, v in data.items():
-        row = [sid]
-        for k in columns[1:]:
-            row.append(v.get(k, ''))
-        cw.writerow(row)
+        cw.writerow([sid] + [v.get(k, '') for k in columns[1:]])
 
-    return Response('\ufeff'+si.getvalue(),
+    return Response(
+        '\ufeff' + si.getvalue(),
         mimetype="text/csv",
-        headers={"Content-Disposition": "attachment; filename=spss.csv"})
+        headers={"Content-Disposition": "attachment; filename=spss.csv"}
+    )
 
 if __name__ == '__main__':
     app.run(debug=True)
