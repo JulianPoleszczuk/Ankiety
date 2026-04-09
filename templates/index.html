@@ -4,148 +4,185 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ankieta Online</title>
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        .radio-cell {
+            position: relative;
+        }
+
+        .mobile-label-left,
+        .mobile-label-right {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .mobile-label-left,
+            .mobile-label-right {
+                display: block;
+                font-size: 10px;
+                color: var(--accent-neon);
+                margin-bottom: 4px;
+            }
+
+            .mobile-label-right {
+                margin-top: 4px;
+            }
+        }
+    </style>
+
 </head>
 <body>
-    <div class="container py-4">
-        <div class="row justify-content-center">
-            <div class="col-12">
-                
-                <div class="survey-header">
-                    <h1>Formularz Badawczy</h1>
-                    <p class="text-muted m-0">Prosimy o wypełnienie wszystkich pól</p>
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-12">
+
+            <div class="survey-header">
+                <h1>Ankieta: Jacy jesteśmy - czym się różnimy?</h1>
+                <p class="text-muted m-0">Prosimy o wypełnienie wszystkich pól</p>
+            </div>
+
+            <form method="POST">
+
+                {% for q in questions %}
+                <div class="question-card">
+                    {% if q.q_type == 'radio' %}
+                        <h5>{{ loop.index }}. {{ q.data.question }}</h5>
+
+                        {% for opt in q.data.options %}
+                        <div class="form-check mb-2">
+                            <input class="form-check-input"
+                                   type="radio"
+                                   name="q_{{ q.id }}"
+                                   value="{{ opt }}"
+                                   required>
+                            <label class="form-check-label px-2">
+                                {{ opt }}
+                            </label>
+                        </div>
+                        {% endfor %}
+                    {% elif q.q_type == 'matrix' %}
+                        <h5>{{ loop.index }}. {{ q.data.question }}</h5>
+
+                        <div class="table-responsive">
+                            <table class="matrix-table">
+                                <thead>
+                                    <tr>
+                                        <th>CECHY</th>
+                                        <th>{{ q.data.left_label }}</th>
+                                        {% for i in range(q.data.scale_points - 2) %}
+                                            <th></th>
+                                        {% endfor %}
+                                        <th>{{ q.data.right_label }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in q.data.rows %}
+                                    <tr>
+                                        <td class="row-label">{{ row.label }}</td>
+
+                                        {% for i in range(1, q.data.scale_points + 1) %}
+                                        <td class="radio-cell">
+
+                                            {% if i == 1 %}
+                                                <span class="mobile-label-left">
+                                                    {{ q.data.left_label }}
+                                                </span>
+                                            {% endif %}
+                                            <input type="radio"
+                                                   name="q_{{ q.id }}_{{ row.id }}"
+                                                   value="{{ i }}">
+
+                                            {% if i == q.data.scale_points %}
+                                                <span class="mobile-label-right">
+                                                    {{ q.data.right_label }}
+                                                </span>
+                                            {% endif %}
+
+                                        </td>
+                                        {% endfor %}
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% elif q.q_type == 'open_numeric' or q.q_type == 'open' %}
+                        <h5>{{ loop.index }}. {{ q.data.question }}</h5>
+
+                        <input type="number"
+                               class="form-control"
+                               placeholder="Wpisz liczbę (0–120)"
+                               name="q_{{ q.id }}"
+                               min="0"
+                               max="120"
+                               required>
+
+                    {% endif %}
+
+                </div>
+                {% endfor %}
+
+                <div class="pb-5">
+                    <button type="submit" class="btn-submit">
+                        WYŚLIJ DANE DO BAZY
+                    </button>
                 </div>
 
-                <form method="POST">
+            </form>
 
-                    {% for q in questions %}
-                    <div class="question-card">
-                        
-                        <!-- RADIO -->
-                        {% if q.q_type == 'radio' %}
-                            <h5>{{ loop.index }}. {{ q.data.question }}</h5>
-                            {% for opt in q.data.options %}
-                            <div class="form-check mb-2">
-                                <input class="form-check-input"
-                                       type="radio"
-                                       name="q_{{ q.id }}"
-                                       value="{{ opt }}"
-                                       required>
-                                <label class="form-check-label px-2">
-                                    {{ opt }}
-                                </label>
-                            </div>
-                            {% endfor %}
-
-                        <!-- MATRIX -->
-                        {% elif q.q_type == 'matrix' %}
-                            <h5>{{ loop.index }}. {{ q.data.question }}</h5>
-                            <div class="table-responsive">
-                                <table class="matrix-table">
-                                    <thead>
-                                        <tr>
-                                            <th>CECHY</th>
-                                            <th>{{ q.data.left_label }}</th>
-                                            {% for i in range(q.data.scale_points - 2) %}
-                                                <th></th>
-                                            {% endfor %}
-                                            <th>{{ q.data.right_label }}</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for row in q.data.rows %}
-                                        <tr>
-                                            <td class="row-label">{{ row.label }}</td>
-
-                                            {% for i in range(1, q.data.scale_points + 1) %}
-                                            <td>
-                                                <input type="radio"
-                                                       name="q_{{ q.id }}_{{ row.id }}"
-                                                       value="{{ i }}"
-                                                       required>
-                                            </td>
-                                            {% endfor %}
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                        {% elif q.q_type == 'open_numeric' %}
-                            <h5>{{ loop.index }}. {{ q.data.question }}</h5>
-                            <input type="number"
-                                class="form-control"
-                                placeholder="Wpisz liczbę..."
-                                name="q_{{ q.id }}"
-                                required>
-                        {% endif %}
-
-                    </div>
-                    {% endfor %}
-
-                    <div class="pb-5">
-                        <button type="submit" class="btn-submit">WYŚLIJ DANE DO BAZY</button>
-                    </div>
-                </form>
-
-            </div>
         </div>
     </div>
+</div>
+<script>
+document.querySelectorAll("input[type=number]").forEach(input => {
+    input.addEventListener("input", function() {
+
+        let value = parseInt(this.value);
+
+        if (isNaN(value)) {
+            this.style.border = "2px solid #333";
+            return;
+        }
+
+        if (value < 0 || value > 120) {
+            this.style.border = "2px solid red";
+        } else {
+            this.style.border = "2px solid lime";
+        }
+
+    });
+});
+</script>
 
 <script>
-let lastTime = Date.now();
-let times = {};
+document.querySelector("form").addEventListener("submit", function(e) {
 
-// RADIO + MATRIX czas
-document.querySelectorAll("input[type=radio]").forEach(input => {
-    input.addEventListener("change", function() {
-        let now = Date.now();
-        let diff = (now - lastTime) / 1000;
+    let valid = true;
 
-        if (times[this.name]) {
-            times[this.name] += diff;
-        } else {
-            times[this.name] = diff;
-        }
+    document.querySelectorAll(".matrix-table").forEach(table => {
 
-        lastTime = now;
+        table.querySelectorAll("tbody tr").forEach(row => {
+
+            let checked = row.querySelector("input[type=radio]:checked");
+
+            if (!checked) {
+                valid = false;
+                row.style.background = "rgba(255,0,0,0.2)";
+            } else {
+                row.style.background = "";
+            }
+
+        });
+
     });
-});
 
-// OPEN NUMERIC czas
-document.querySelectorAll("input[type=number]").forEach(input => {
-    input.addEventListener("change", function() {
-        let now = Date.now();
-        let diff = (now - lastTime) / 1000;
-
-        if (times[this.name]) {
-            times[this.name] += diff;
-        } else {
-            times[this.name] = diff;
-        }
-
-        lastTime = now;
-    });
-});
-
-// submit
-document.querySelector("form").addEventListener("submit", function() {
-
-    document.querySelectorAll("input:checked, input[type=number]").forEach(input => {
-
-        let name = input.name;
-
-        if (!times[name]) {
-            times[name] = (Date.now() - lastTime) / 1000;
-        }
-
-        let hidden = document.createElement("input");
-        hidden.type = "hidden";
-        hidden.name = name + "_time";
-        hidden.value = times[name];
-
-        this.appendChild(hidden);
-    });
+    if (!valid) {
+        e.preventDefault();
+        alert("Uzupełnij wszystkie wiersze w tabeli!");
+    }
 
 });
 </script>

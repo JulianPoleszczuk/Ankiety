@@ -18,9 +18,6 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 ADMIN_PASSWORD = "admin123"
-
-# --- MODELE ---
-
 class Question(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     q_type = db.Column(db.String(50))
@@ -32,7 +29,6 @@ class Result(db.Model):
     question_id = db.Column(db.Integer)
     row_id = db.Column(db.String(100))
     answer = db.Column(db.Text)
-    time_spent = db.Column(db.Float)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Visit(db.Model):
@@ -41,23 +37,13 @@ class Visit(db.Model):
 
 with app.app_context():
     db.create_all()
-
-# --- LOGIN ---
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         if request.form.get('password') == ADMIN_PASSWORD:
             session['logged_in'] = True
             return redirect('/admin')
-    return '''
-    <form method="POST" style="text-align:center;margin-top:100px;">
-        <input type="password" name="password">
-        <button>Zaloguj</button>
-    </form>
-    '''
-
-# --- INDEX ---
+    return '<form method="POST"><input type="password" name="password"><button>Zaloguj</button></form>'
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -72,52 +58,53 @@ def index():
         form = request.form.to_dict()
 
         for key, value in form.items():
-
-            if key.endswith("_time"):
-                continue
-
             try:
                 parts = key.split('_')
                 q_id = int(parts[1])
-                row_id = parts[2] if len(parts) > 2 else None
+                row_id = None
+                if len(parts) > 2:
+                    q = Question.query.get(q_id)
 
-                time_spent = float(form.get(key + "_time", 0))
+                    if q and q.q_type == "matrix":
+                        matrix_index = Question.query.filter_by(q_type='matrix') \
+                            .filter(Question.id <= q.id).count() - 1
 
-                # 🔥 płeć jako 0/1
-                if value.lower() in ["kobieta", "k"]:
-                    value = "0"
-                elif value.lower() in ["mężczyzna", "mezczyzna", "m"]:
-                    value = "1"
+                        prefix = chr(99 + matrix_index)  # c, d, e...
+                        row_number = parts[2][1:]        # z c0 -> 0
+
+                        row_id = f"{prefix}{row_number}"
+
+                # płeć jako 0/1
+                if isinstance(value, str):
+                    if value.lower() in ["kobieta", "k"]:
+                        value = "0"
+                    elif value.lower() in ["mężczyzna", "mezczyzna", "m"]:
+                        value = "1"
 
                 db.session.add(Result(
                     session_id=session_id,
                     question_id=q_id,
                     row_id=row_id,
-                    answer=value,
-                    time_spent=time_spent
+                    answer=value
                 ))
-            except:
+
+            except Exception as e:
+                print("Błąd:", e)
                 continue
 
         db.session.commit()
         return redirect('/thanks')
 
-    questions = []
-    for q in Question.query.all():
-        questions.append({
-            'id': q.id,
-            'q_type': q.q_type,
-            'data': json.loads(q.content)
-        })
+    questions = [{
+        'id': q.id,
+        'q_type': q.q_type,
+        'data': json.loads(q.content)
+    } for q in Question.query.all()]
 
     return render_template('index.html', questions=questions)
-
-
 @app.route('/thanks')
 def thanks():
     return render_template('thanks.html')
-
-# --- ADMIN ---
 
 @app.route('/admin', methods=['GET', 'POST'])
 def admin():
@@ -134,18 +121,17 @@ def admin():
                 q_type='radio',
                 content=json.dumps({
                     "question": request.form.get('question'),
-                    "options": options
+                    "options": options,
+                    "var_name": request.form.get('var_name')
                 })
             ))
-
         elif action == 'add_matrix':
             rows = []
-            for i, r in enumerate(request.form.get('rows').split(','), start=1):
+            for i, r in enumerate(request.form.get('rows').split(',')):
                 rows.append({
                     "id": f"c{i}",
                     "label": r.strip()
                 })
-
             db.session.add(Question(
                 q_type='matrix',
                 content=json.dumps({
@@ -156,12 +142,12 @@ def admin():
                     "rows": rows
                 })
             ))
-
         elif action == 'add_open':
             db.session.add(Question(
                 q_type='open',
                 content=json.dumps({
-                    "question": request.form.get('question')
+                    "question": request.form.get('question'),
+                    "var_name": request.form.get('var_name')
                 })
             ))
 
@@ -189,7 +175,7 @@ def admin():
     ).filter(Result.row_id != None).group_by(Result.row_id).all()
 
     labels = [a[0] for a in averages]
-    values = [round(a[1], 2) for a in averages]
+    values = [round(float(a[1]), 2) for a in averages]
 
     return render_template(
         'admin.html',
@@ -201,8 +187,6 @@ def admin():
         values=values
     )
 
-# --- EXPORT SAV ---
-
 @app.route('/export_sav')
 def export_sav():
     results = Result.query.all()
@@ -213,14 +197,18 @@ def export_sav():
         if sid not in data:
             data[sid] = {}
 
-        key = r.row_id if r.row_id else f"q{r.question_id}"
+        q = Question.query.get(r.question_id)
+        content = json.loads(q.content)
+
+        if r.row_id:
+            key = r.row_id
+        else:
+            key = content.get("var_name", f"q{r.question_id}")
 
         try:
             data[sid][key] = float(r.answer)
         except:
             data[sid][key] = r.answer
-
-        data[sid][key + "_time"] = r.time_spent
 
     df = pd.DataFrame.from_dict(data, orient='index')
     df.reset_index(inplace=True)
@@ -234,8 +222,6 @@ def export_sav():
         headers={"Content-Disposition": "attachment; filename=ankieta.sav"}
     )
 
-# --- EXPORT CSV ---
-
 @app.route('/export_spss')
 def export_spss():
     results = Result.query.all()
@@ -246,7 +232,14 @@ def export_spss():
         if sid not in data:
             data[sid] = {}
 
-        key = r.row_id if r.row_id else f"q{r.question_id}"
+        q = Question.query.get(r.question_id)
+        content = json.loads(q.content)
+
+        if r.row_id:
+            key = r.row_id
+        else:
+            key = content.get("var_name", f"q{r.question_id}")
+
         data[sid][key] = r.answer
 
     columns = ['session'] + sorted({k for v in data.values() for k in v})
